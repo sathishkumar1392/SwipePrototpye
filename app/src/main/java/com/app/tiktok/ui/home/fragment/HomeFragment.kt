@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Observer
+import androidx.viewpager2.widget.ViewPager2
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -37,8 +38,9 @@ class HomeFragment : BaseFragment(R.layout.fragment_home) {
                     if (!value.data.isNullOrEmpty()) {
                         val dataList = value.data
                         storiesPagerAdapter = StoriesPagerAdapter(this, dataList)
+                        view_pager_stories.orientation = ViewPager2.ORIENTATION_HORIZONTAL
                         view_pager_stories.adapter = storiesPagerAdapter
-
+                        view_pager_stories.offscreenPageLimit = 1
                         startPreCaching(dataList)
                     }
                 }

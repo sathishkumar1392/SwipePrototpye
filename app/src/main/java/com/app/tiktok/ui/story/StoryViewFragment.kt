@@ -11,10 +11,12 @@ import com.app.tiktok.app.MyApp
 import com.app.tiktok.model.StoriesDataModel
 import com.app.tiktok.ui.main.viewmodel.MainViewModel
 import com.app.tiktok.utils.*
+import com.google.android.exoplayer2.ExoPlaybackException
 import com.google.android.exoplayer2.ExoPlayerFactory
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.source.ProgressiveMediaSource
+import com.google.android.exoplayer2.source.hls.HlsMediaSource
 import com.google.android.exoplayer2.ui.PlayerView
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory
 import com.google.android.exoplayer2.upstream.cache.CacheDataSourceFactory
@@ -46,6 +48,7 @@ class StoryViewFragment : Fragment(R.layout.fragment_story_view) {
 
         storiesDataModel = arguments?.getParcelable(Constants.KEY_STORY_DATA)
         setData()
+        //setupPlayerView()
     }
 
     private fun setData() {
@@ -65,6 +68,7 @@ class StoryViewFragment : Fragment(R.layout.fragment_story_view) {
 
         storyUrl = storiesDataModel?.storyUrl
         storyUrl?.let { prepareMedia(it) }
+
     }
 
     override fun onPause() {
@@ -87,18 +91,25 @@ class StoryViewFragment : Fragment(R.layout.fragment_story_view) {
             logError("onPlayerStateChanged playbackState: $playbackState")
         }
 
-        override fun onPlayerError(error: com.google.android.exoplayer2.ExoPlaybackException?) {
-            super.onPlayerError(error)
+        override fun onPlayerError(error: ExoPlaybackException) {
+            if (error != null) {
+                super.onPlayerError(error)
+            }
         }
     }
 
     private fun prepareVideoPlayer() {
-        simplePlayer = ExoPlayerFactory.newSimpleInstance(context)
-        cacheDataSourceFactory = CacheDataSourceFactory(simpleCache,
-            DefaultHttpDataSourceFactory(
-                Util.getUserAgent(context,
-                "exo"))
-        )
+        context?.let {
+            simplePlayer = ExoPlayerFactory.newSimpleInstance(it)
+            cacheDataSourceFactory = simpleCache?.let { it1 ->
+                CacheDataSourceFactory(
+                    it1,
+                    DefaultHttpDataSourceFactory(
+                        Util.getUserAgent(it,
+                            "exo"))
+                )
+            }
+        }
     }
 
     private fun getPlayer(): SimpleExoPlayer? {
@@ -110,15 +121,32 @@ class StoryViewFragment : Fragment(R.layout.fragment_story_view) {
 
     private fun prepareMedia(linkUrl: String) {
         logError("prepareMedia linkUrl: $linkUrl")
+        if (linkUrl.endsWith(".m3u8")) {
+               val uri1 = Uri.parse(linkUrl)
+         val hls =  HlsMediaSource.Factory(cacheDataSourceFactory).createMediaSource(uri1)
+            if (hls != null) {
+                simplePlayer?.prepare(hls, true, true)
+                simplePlayer?.repeatMode = Player.REPEAT_MODE_ONE
+                //simplePlayer?.playWhenReady = true
+                if (playerCallback != null) {
+                    simplePlayer?.addListener(playerCallback)
+                }
+            }
+        }else {
+            val uri = Uri.parse(linkUrl)
 
-        val uri = Uri.parse(linkUrl)
+            val mediaSource = cacheDataSourceFactory?.let { ProgressiveMediaSource.Factory(it).createMediaSource(uri) }
+            if (mediaSource != null) {
+                simplePlayer?.prepare(mediaSource, true, true)
+                simplePlayer?.repeatMode = Player.REPEAT_MODE_ONE
+                //simplePlayer?.playWhenReady = true
+                if (playerCallback != null) {
+                    simplePlayer?.addListener(playerCallback)
+                }
+            }
+        }
 
-        val mediaSource = ProgressiveMediaSource.Factory(cacheDataSourceFactory).createMediaSource(uri)
 
-        simplePlayer?.prepare(mediaSource, true, true)
-        simplePlayer?.repeatMode = Player.REPEAT_MODE_ONE
-        simplePlayer?.playWhenReady = true
-        simplePlayer?.addListener(playerCallback)
 
         toPlayVideoPosition = -1
     }
@@ -130,6 +158,10 @@ class StoryViewFragment : Fragment(R.layout.fragment_story_view) {
 
     private fun playVideo() {
         simplePlayer?.playWhenReady = true
+    }
+
+    private fun setupPlayerView() {
+        player_view_story.player = simplePlayer
     }
 
     private fun restartVideo() {
